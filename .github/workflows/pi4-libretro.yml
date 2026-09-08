@@ -21,6 +21,33 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Apply Raspberry Pi 4 GPU pool limits
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('pcsx2/GS/Renderers/Common/GSDevice.h')
+          text = path.read_text()
+
+          replacements = {
+              'static constexpr u32 MAX_POOLED_TARGETS = 300;': 'static constexpr u32 MAX_POOLED_TARGETS = 64;',
+              'static constexpr u32 MAX_TARGET_AGE = 20;': 'static constexpr u32 MAX_TARGET_AGE = 6;',
+              'static constexpr u32 MAX_POOLED_TEXTURES = 300;': 'static constexpr u32 MAX_POOLED_TEXTURES = 96;',
+              'static constexpr u32 MAX_TEXTURE_AGE = 10;': 'static constexpr u32 MAX_TEXTURE_AGE = 6;',
+          }
+
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'Expected source line not found: {old}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text)
+
+          for line in path.read_text().splitlines():
+              if 'MAX_POOLED_' in line or 'MAX_TARGET_AGE' in line or 'MAX_TEXTURE_AGE' in line:
+                  print(line)
+          PY
+
       - name: Install packages
         run: |
           tools/retry.sh wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
@@ -85,9 +112,9 @@ jobs:
           cp -v "$SO" out/armsx2_libretro.so
           file out/armsx2_libretro.so
 
-      - name: Upload Raspberry Pi 4 core
+      - name: Upload Raspberry Pi 4 pool-fix core
         uses: actions/upload-artifact@v7
         with:
-          name: armsx2-libretro-raspberry-pi4-armv8
+          name: armsx2-libretro-raspberry-pi4-poolfix-armv8
           path: out/armsx2_libretro.so
           if-no-files-found: error
